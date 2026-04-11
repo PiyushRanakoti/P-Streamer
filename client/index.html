@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>AudioStream</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg:       #080910;
+    --surface:  #10111a;
+    --border:   #1e2035;
+    --accent:   #6366f1;
+    --accent2:  #818cf8;
+    --violet:   #a78bfa;
+    --text:     #e2e4f0;
+    --muted:    #6b6e8f;
+    --success:  #34d399;
+    --danger:   #f87171;
+    --glow:     rgba(99,102,241,0.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow: hidden;
+  }
+
+  /* Ambient background glow */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 340px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 36px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    position: relative;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset,
+                0 32px 64px rgba(0,0,0,0.5);
+  }
+
+  /* Top status badge */
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 5px 12px;
+  }
+
+  .badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+
+  .badge-dot.live {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+  }
+
+  /* Visualizer ring */
+  .viz-wrap {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .viz-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .viz-ring.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 24px var(--glow), 0 0 48px rgba(99,102,241,0.15);
+  }
+
+  .viz-ring-outer {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1px solid rgba(99,102,241,0.2);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .viz-ring-outer.active { opacity: 1; animation: spin-slow 8s linear infinite; }
+
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  .play-icon {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--violet));
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+    box-shadow: 0 8px 24px rgba(99,102,241,0.4);
+    z-index: 1;
+  }
+
+  .play-icon:hover:not(:disabled) {
+    transform: scale(1.08);
+    box-shadow: 0 12px 32px rgba(99,102,241,0.55);
+  }
+
+  .play-icon:active:not(:disabled) { transform: scale(0.96); }
+  .play-icon:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .play-icon svg { width: 22px; height: 22px; fill: #fff; }
+
+  /* Waveform bars */
+  .wave {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 40px;
+  }
+
+  .bar {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--accent);
+    min-height: 4px;
+    transition: height 0.08s ease;
+    opacity: 0.3;
+  }
+
+  .bar.active { opacity: 1; }
+
+  /* Info rows */
+  .info-row {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  .info-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .info-value { color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px; }
+  .info-value.good { color: var(--success); }
+  .info-value.bad  { color: var(--danger); }
+
+  /* Volume bar */
+  .vol-track {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .vol-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--violet));
+    border-radius: 2px;
+    transition: width 0.06s;
+  }
+
+  .title-area {
+    text-align: center;
+  }
+
+  .title-area h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--text), var(--muted));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .title-area p {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Reconnect hint */
+  .hint {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <!-- Status badge -->
+  <div class="badge">
+    <span class="badge-dot" id="dot"></span>
+    <span id="badge-text">Not connected</span>
+  </div>
+
+  <!-- Title -->
+  <div class="title-area">
+    <h1>AudioStream</h1>
+    <p>Live audio from your PC</p>
+  </div>
+
+  <!-- Visualizer + play button -->
+  <div class="viz-wrap">
+    <div class="viz-ring-outer" id="ring-outer"></div>
+    <div class="viz-ring" id="ring"></div>
+    <button class="play-icon" id="btn" onclick="start()">
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+  </div>
+
+  <!-- Waveform -->
+  <div class="wave" id="wave"></div>
+
+  <!-- Stats -->
+  <div class="info-row">
+    <div class="info-item">
+      <span class="info-label">Status</span>
+      <span class="info-value" id="stat-status">Idle</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Latency</span>
+      <span class="info-value" id="stat-latency">—</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Volume</span>
+      <div class="vol-track"><div class="vol-fill" id="vol-fill"></div></div>
+    </div>
+  </div>
+
+  <p class="hint" id="hint">Tap the button to start listening.<br>Make sure you're on the same WiFi.</p>
+</div>
+
+<script>
+  // Build waveform bars
+  const wave = document.getElementById('wave');
+  const BAR_COUNT = 20;
+  const bars = [];
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const b = document.createElement('div');
+    b.className = 'bar';
+    wave.appendChild(b);
+    bars.push(b);
+  }
+
+  let audioCtx, analyser, nextTime = 0;
+  let animFrame;
+
+  function setStatus(label, type) {
+    const el = document.getElementById('stat-status');
+    el.textContent = label;
+    el.className = 'info-value ' + (type || '');
+  }
+
+  function setBadge(label, live) {
+    document.getElementById('badge-text').textContent = label;
+    document.getElementById('dot').className = 'badge-dot' + (live ? ' live' : '');
+  }
+
+  function setRingActive(on) {
+    document.getElementById('ring').className = 'viz-ring' + (on ? ' active' : '');
+    document.getElementById('ring-outer').className = 'viz-ring-outer' + (on ? ' active' : '');
+    bars.forEach(b => b.className = 'bar' + (on ? ' active' : ''));
+  }
+
+  function animateWave(data) {
+    const step = Math.floor(data.length / BAR_COUNT);
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const val = data[i * step] / 255;
+      const h = Math.max(4, val * 36);
+      bars[i].style.height = h + 'px';
+    }
+    document.getElementById('vol-fill').style.width =
+      Math.min((data.reduce((a, b) => a + b, 0) / data.length) * 2.2, 100) + '%';
+  }
+
+  let started = false;
+  let connectedAt = null;
+
+  function start() {
+    if (started) return;
+    started = true;
+    document.getElementById('btn').disabled = true;
+    document.getElementById('hint').textContent = 'Connecting to server…';
+    setBadge('Connecting…', false);
+    setStatus('Connecting…');
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 44100, latencyHint: 'interactive'
+    });
+
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 128;
+    analyser.connect(audioCtx.destination);
+
+    const ws = new WebSocket('ws://' + location.hostname + ':8081/ws');
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      connectedAt = Date.now();
+      setBadge('Live', true);
+      setStatus('Live', 'good');
+      setRingActive(true);
+      document.getElementById('hint').textContent = 'Streaming live audio from your PC.';
+      nextTime = audioCtx.currentTime + 0.01;
+
+      // Animate
+      const freqData = new Uint8Array(analyser.frequencyBinCount);
+      function loop() {
+        analyser.getByteFrequencyData(freqData);
+        animateWave(freqData);
+        if (connectedAt) {
+          const secs = ((Date.now() - connectedAt) / 1000).toFixed(0);
+          document.getElementById('stat-latency').textContent = '~40ms  |  ' + secs + 's';
+        }
+        animFrame = requestAnimationFrame(loop);
+      }
+      loop();
+    };
+
+    ws.onmessage = (e) => {
+      const pcm16 = new Int16Array(e.data);
+      const buf = audioCtx.createBuffer(1, pcm16.length, 44100);
+      const ch  = buf.getChannelData(0);
+      for (let i = 0; i < pcm16.length; i++) ch[i] = pcm16[i] / 32768.0;
+
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(analyser);
+
+      const now = audioCtx.currentTime;
+      if (nextTime < now || nextTime > now + 0.15) nextTime = now + 0.01;
+      src.start(nextTime);
+      nextTime += buf.duration;
+    };
+
+    ws.onclose = () => {
+      cancelAnimationFrame(animFrame);
+      setBadge('Disconnected', false);
+      setStatus('Disconnected', 'bad');
+      setRingActive(false);
+      document.getElementById('hint').textContent = 'Connection closed. Reload to reconnect.';
+      connectedAt = null;
+      started = false;
+      document.getElementById('btn').disabled = false;
+      document.getElementById('vol-fill').style.width = '0%';
+      bars.forEach(b => b.style.height = '4px');
+    };
+
+    ws.onerror = () => {
+      setStatus('Error', 'bad');
+      setBadge('Error', false);
+      document.getElementById('hint').textContent = 'Could not connect — are you on the same WiFi?';
+    };
+  }
+</script>
+</body>
+</html>

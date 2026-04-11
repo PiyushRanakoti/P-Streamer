@@ -1,0 +1,9 @@
+AudioStream/
+├── server/
+│   ├── AudioServer.java   ← Swing GUI + HTTP/WS/UDP server
+│   └── QrFetcher.java     ← QR code fetcher (no deps)
+├── sender/
+│   └── AudioSender.java   ← Audio capture → UDP
+├── client/
+│   └── index.html         ← Browser frontend (served to phone)
+├── run.bat                ← Windows launcher
