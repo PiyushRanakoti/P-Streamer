@@ -14,7 +14,7 @@ import java.net.*;
  */
 public class AudioSender {
     static final int SAMPLE_RATE = 44100;
-    static final int FRAME_MS = 20; // ← 20ms for lower latency
+    static final int FRAME_MS = 18; // ← 20ms for lower latency
     static final String SERVER = "127.0.0.1";
     static final int UDP_PORT = 9876;
 
